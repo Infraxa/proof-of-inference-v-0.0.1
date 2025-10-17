@@ -43,8 +43,10 @@ def check_dependencies():
     try:
         result = subprocess.run(['snarkjs', '--version'],
                               capture_output=True, text=True, timeout=5)
-        if result.returncode == 0:
-            print(f"  ✅ snarkjs: {result.stdout.strip()}")
+        # snarkjs returns exit code 99 when showing version
+        if result.returncode in [0, 99] and 'snarkjs' in result.stdout:
+            version = result.stdout.split('\n')[0]
+            print(f"  ✅ {version}")
         else:
             print("  ❌ snarkjs not found")
             return False
@@ -70,9 +72,10 @@ def compile_circuit():
     
     print(f"\nCompiling {circuit_path}...")
     
-    # Compile circuit to R1CS
+    # Compile circuit to R1CS (use newer circom if available)
+    circom_cmd = '/tmp/circom' if os.path.exists('/tmp/circom') else 'circom'
     result = subprocess.run([
-        'circom',
+        circom_cmd,
         circuit_path,
         '--r1cs',
         '--wasm',
@@ -201,11 +204,12 @@ def generate_proof():
     print(f"\nProvider's secret preimage: {preimage}")
     print("(This will NOT be revealed to the verifier)")
     
-    # Compute hash (we'll use a mock hash for demo)
+    # Compute hash (simple sum for demo circuit)
     # In real implementation, this would be Poseidon hash
-    hash_output = 12345  # Mock hash value
+    hash_output = sum(preimage)  # Simple hash: 1+2+3+4 = 10
     
     print(f"Public hash commitment: {hash_output}")
+    print("(Using simple sum hash for demo - real would use Poseidon)")
     
     # Create input JSON
     input_data = {
@@ -217,9 +221,9 @@ def generate_proof():
         json.dump(input_data, f)
     
     print("\nGenerating witness...")
+    # Use snarkjs to calculate witness (avoids ES module issues)
     result = subprocess.run([
-        'node',
-        f'{build_dir}/hash_preimage_js/generate_witness.js',
+        'snarkjs', 'wtns', 'calculate',
         f'{build_dir}/hash_preimage_js/hash_preimage.wasm',
         f'{build_dir}/input.json',
         f'{build_dir}/witness.wtns'
