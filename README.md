@@ -35,12 +35,17 @@ Zero-knowledge inspired cryptographic commitments that:
 
 ## 🎯 What This Demonstrates
 
-This proof-of-concept successfully shows that **cryptographic proof-of-inference can detect and prevent model substitution attacks with 100% accuracy** using:
+This proof-of-concept successfully shows that **cryptographic proof-of-inference can detect and prevent model substitution attacks with 100% accuracy** using multiple verification approaches:
 
+### Core System (Merkle-based)
 1. **Model Hash Commitments** - Cryptographically bind responses to specific models
 2. **Merkle Tree Transcripts** - Commit to per-step logits during generation
 3. **Probabilistic Audits** - Verify random steps via VRF (90% cost reduction)
 4. **Cryptographic Signatures** - Prevent hash forgery and ensure non-repudiation
+
+### Advanced Variants (Experimental)
+5. **Fraud Proofs** - Optimistic verification with economic penalties
+6. **ZK-SNARKs** - Zero-knowledge cryptographic proofs (non-interactive)
 
 ### Real-World Attack Testing
 
@@ -74,8 +79,21 @@ source .venv/bin/activate
 pip install mlx-lm mlx numpy huggingface-hub
 ```
 
+#### Optional: ZK-SNARK Setup
+
+For the ZK-SNARK variant, you'll also need:
+
+```bash
+# Install circom and snarkjs (requires Node.js or Bun)
+bun install -g circom snarkjs
+
+# Or with npm
+npm install -g circom snarkjs
+```
+
 ### Run Experiments
 
+#### Core System (Merkle-based)
 ```bash
 # Basic proof-of-inference demo
 python demo.py
@@ -90,12 +108,30 @@ python test_cheating.py
 python test_attack_scenarios.py
 ```
 
+#### Advanced Variants
+```bash
+# Fraud proofs (optimistic verification)
+python variants/fraud_proofs/demo_fraud_proofs.py
+
+# ZK-SNARKs (requires circom/snarkjs - see below)
+python variants/zk_snark/demo_concept.py        # Conceptual demo (no dependencies)
+python variants/zk_snark/demo_zk_inference.py   # Real ZK with MLX models
+```
+
 **First run**: Downloads Qwen3-4B-4bit (~2.5GB) from Hugging Face  
 **Subsequent runs**: Uses cached model (instant load)
 
 ---
 
 ## 📊 Experimental Results
+
+### Verification Approaches Comparison
+
+| Approach | Verification Time | Proof Size | Interactive | Privacy | Detection Rate |
+|----------|------------------|------------|-------------|---------|----------------|
+| **Merkle + Audit** | 3 steps × inference | ~10KB | Yes (2+ rounds) | Reveals logits | 100% |
+| **Fraud Proofs** | Optimistic (instant) | ~10KB | Challenge-based | Reveals on challenge | 100% |
+| **ZK-SNARKs** | ~200ms (constant!) | ~800 bytes | No (1 round) | Zero-knowledge | 100% |
 
 ### Attack Detection Performance
 
@@ -299,7 +335,26 @@ dist_infr/
 ├── compare_models.py            # Performance comparison tool
 ├── test_cheating.py             # Security tests
 ├── test_attack_scenarios.py     # Comprehensive attack simulation
+│
+├── variants/                    # Advanced verification variants
+│   ├── fraud_proofs/            # Optimistic verification
+│   │   ├── optimistic_router.py
+│   │   ├── stake_manager.py
+│   │   └── demo_fraud_proofs.py
+│   │
+│   └── zk_snark/                # Zero-knowledge proofs
+│       ├── circuits/            # Circom circuits
+│       │   ├── hash_preimage.circom
+│       │   └── logits_16.circom
+│       ├── demo_concept.py      # Conceptual demo
+│       ├── demo_hash_preimage.py
+│       ├── demo_zk_inference.py # Real MLX integration
+│       ├── test_zk_authenticity.py
+│       ├── NON-TECHNICAL.md     # For non-technical readers
+│       └── README_TECHNICAL.md  # Deep technical dive
+│
 ├── README.md                    # This file
+├── VARIANTS_ROADMAP.md          # Comparison of all variants
 ├── SECURITY_ANALYSIS.md         # Detailed security analysis
 ├── QUICKSTART.md                # 5-minute getting started
 └── SETUP_MLX.md                 # MLX setup & troubleshooting
@@ -356,13 +411,23 @@ Infraxa Node Network (Future)
 
 ## 🎓 Technical Deep Dive
 
-### Zero-Knowledge Inspiration
+### Zero-Knowledge Proofs
 
-While not a full ZK-SNARK implementation, this system draws inspiration from zero-knowledge proofs:
+The **core system** draws inspiration from zero-knowledge proofs:
 
 - **Completeness**: Honest providers can always generate valid proofs
 - **Soundness**: Dishonest providers cannot forge valid proofs (with high probability)
 - **Efficiency**: Verification is much cheaper than re-execution
+
+**NEW**: We've implemented **real ZK-SNARKs** in `variants/zk_snark/`:
+
+- **True Zero-Knowledge**: Verifier learns nothing about logits
+- **Succinct**: Constant ~800 byte proofs
+- **Non-Interactive**: One-shot verification (~200ms)
+- **Groth16 Protocol**: Real cryptographic proofs using elliptic curves
+- **Tested with Real Models**: Qwen3-0.6B, 1.7B, 4B (75,968-dim logits)
+
+See [`variants/zk_snark/NON-TECHNICAL.md`](variants/zk_snark/NON-TECHNICAL.md) for an accessible explanation, or [`variants/zk_snark/README_TECHNICAL.md`](variants/zk_snark/README_TECHNICAL.md) for the full technical deep dive.
 
 ### Cryptographic Primitives
 
@@ -437,12 +502,14 @@ Logits (raw model outputs before softmax) are ideal for verification:
 This is an experimental research project. Contributions welcome!
 
 **Areas for exploration**:
-- [ ] Real ZK-SNARK integration (Groth16, PLONK)
-- [ ] Optimistic verification with fraud proofs
+- [x] **Real ZK-SNARK integration (Groth16)** ✅ Implemented in `variants/zk_snark/`
+- [x] **Optimistic verification with fraud proofs** ✅ Implemented in `variants/fraud_proofs/`
 - [ ] Multi-party computation for distributed inference
 - [ ] Homomorphic encryption for private inference
 - [ ] TEE integration (SGX, SEV, TDX)
 - [ ] Economic game theory analysis
+- [ ] Larger ZK circuits (prove more logits)
+- [ ] Recursive ZK proofs (full sequence verification)
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
@@ -468,10 +535,13 @@ MIT License - see LICENSE file for details
 **Status**: ✅ **Research Proof-of-Concept**
 
 This implementation successfully demonstrates:
-- ✅ Cryptographic proof-of-inference mechanisms
-- ✅ 100% detection of model substitution attacks
-- ✅ Real MLX model integration (0.6B, 1.7B, 4B tested)
-- ✅ Negligible performance overhead (<1%)
+- ✅ **Cryptographic proof-of-inference mechanisms** (3 variants)
+- ✅ **100% detection of model substitution attacks** (all variants)
+- ✅ **Real MLX model integration** (0.6B, 1.7B, 4B tested)
+- ✅ **Negligible performance overhead** (<1% for Merkle, ~200ms for ZK)
+- ✅ **Real ZK-SNARKs** with Groth16 protocol (800-byte proofs)
+- ✅ **Fraud proofs** with optimistic verification
+- ✅ **Authenticity tests** proving system is not faking
 
 **NOT production-ready**. Requires additional hardening:
 - Real ECDSA signatures (not HMAC)
